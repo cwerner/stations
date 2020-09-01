@@ -1,0 +1,2 @@
+-e .
+#streamlit-0.65.24-py2.py3-none-any.whl
