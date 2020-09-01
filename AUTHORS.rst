@@ -2,4 +2,4 @@
 Contributors
 ============
 
-* Christian Werner <chr.werner@me.com>
+* Christian Werner <christian.werner@kit.edu>
