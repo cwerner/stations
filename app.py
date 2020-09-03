@@ -1,4 +1,5 @@
 import datetime
+from typing import Collection, Tuple
 
 import streamlit as st
 from dwdweather import DwdWeather
@@ -66,24 +67,39 @@ def filter_by_dates(stations: StationsType, start: int, end: int) -> StationsTyp
     return filtered
 
 
+def create_sidebar() -> Tuple[Resolution, int, Collection[int]]:
+    res = select_data_resolution()
+    dist = select_max_station_distance()
+    years = select_observation_years()
+    return res, dist, years
+
+
+def create_mainpage(
+    filtered_stations: StationsType, tereno_stations: StationsType, dist: int
+):
+    st.title("Stations near IMK-IFU/ KIT 🏔🌦")
+    st.write(f"Number of stations: {len(filtered_stations)}")
+
+    station_map = create_map(filtered_stations, tereno_stations, dist)
+    folium_static(station_map)
+
+
 def main():
-    st.beta_set_page_config(page_title="DWD Stations")
 
-    st.write("# DWD stations near IMK-IFU/ KIT 🏔🌦")
+    # site config
+    st.beta_set_page_config(
+        page_title="DWD Stations",
+        initial_sidebar_state="expanded",
+    )
 
-    data_resolution = select_data_resolution()
-    max_station_distance = select_max_station_distance()
-    observation_years = select_observation_years()
+    data_resolution, max_station_distance, observation_years = create_sidebar()
 
     closest_stations = find_close_stations(
         dist=max_station_distance, res=data_resolution
     )
     filtered_stations = filter_by_dates(closest_stations, *observation_years)
 
-    st.write(f"Number of stations: {len(filtered_stations)}")
-
-    station_map = create_map(filtered_stations, tereno_stations, max_station_distance)
-    folium_static(station_map)
+    create_mainpage(filtered_stations, tereno_stations, max_station_distance)
 
 
 if __name__ == "__main__":
