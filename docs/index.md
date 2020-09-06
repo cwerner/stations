@@ -1,17 +1,17 @@
-```{toctree}
-:hidden: true
-:maxdepth: 2
-:caption: My Title
+??? success
+   Content.
 
-License <license>
-Authors <authors>
-Changelog <changelog>
-Module Reference <api/modules>
+??? warning classes
+   Content.
+
+!!! fsd
+    sdsd
+
+```python
+def fn():
+    pass
 ```
 
-```{include} ../README.md
-:relative-images:
-```
 
 These pages are generated using {doc}`Sphinx documentation <sphinx:usage/quickstart>`.
 It is formatted in `reStructuredText` and `markdown`. Add additional pages

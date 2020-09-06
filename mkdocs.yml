@@ -8,6 +8,8 @@ edit_uri: ""
 
 theme:
     name: material
+    palette:
+        primary: pink
     highlightjs: true
     hljs_languages:
         - yaml
