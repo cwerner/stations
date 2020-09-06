@@ -1,9 +1,9 @@
-site_name: MkDocs
-site_url: https://www.mkdocs.org
-site_description: Project documentation with Markdown.
-site_author: MkDocs Team
+site_name: stations
+site_url: https://cwerner.github.io/stations
+site_description: Project documentation for stations.
+site_author: Christian Werner
 
-repo_url: https://cwerner.github.com/stations
+repo_url: https://github.com/cwerner/stations
 edit_uri: ""
 
 theme:
@@ -11,7 +11,6 @@ theme:
     highlightjs: true
     hljs_languages:
         - yaml
-        - django
 
 nav:
     - Home: index.md
@@ -32,9 +31,10 @@ markdown_extensions:
         permalink: 
     - admonition
     - def_list
-#    - mdx_gh_links:
-#        user: mkdocs
-#        repo: mkdocs
+    - pymdownx.details
+    - pymdownx.superfences
+
+
 
 plugins:
     - search
