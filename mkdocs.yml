@@ -1,0 +1,66 @@
+site_name: stations
+site_url: https://cwerner.github.io/stations
+site_description: Project documentation for stations.
+site_author: Christian Werner
+
+repo_url: https://github.com/cwerner/stations
+edit_uri: ""
+
+theme:
+    name: material
+    palette:
+        primary: pink
+    highlightjs: true
+    hljs_languages:
+        - yaml
+        -
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/cwerner
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/cwerner76
+    - icon: fontawesome/brands/linkedin
+      link: https://linkedin.com/in/christian-werner-01
+
+nav:
+    - Home: index.md
+    - User Guide:
+        - Writing Your Docs: user-guide/writing-your-docs.md
+        - Styling Your Docs: user-guide/styling-your-docs.md
+        - Configuration: user-guide/configuration.md
+        - Deploying Your Docs: user-guide/deploying-your-docs.md
+        - Custom Themes: user-guide/custom-themes.md
+        - Plugins: user-guide/plugins.md
+    - About:
+        - Release Notes: about/release-notes.md
+        - Contributing: about/contributing.md
+        - License: about/license.md
+
+markdown_extensions:
+    - toc:
+        permalink: 
+    - admonition
+    - def_list
+    - pymdownx.arithmatex:
+        generic: true
+    - pymdownx.details
+    - pymdownx.emoji:
+        emoji_index: !!python/name:materialx.emoji.twemoji
+        emoji_generator: !!python/name:materialx.emoji.to_svg
+    - pymdownx.superfences
+    - pymdownx.tabbed
+
+extra_javascript:
+    - javascripts/config.js
+    - https://polyfill.io/v3/polyfill.min.js?features=es6
+    - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+#extra_css:
+#    - css/extra.css
+
+plugins:
+    - search
+    - bibtex:
+        bib_file: "docs/selpapers.bib"
+        cite_style: "plain"
