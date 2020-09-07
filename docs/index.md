@@ -3,8 +3,8 @@
     $p(x|y) = \frac{p(y|x)p(x)}{p(y)}$, \(p(x|y) = \frac{p(y|x)p(x)}{p(y)}\).
 
 
-??? warning "Does not work... :worried:"
-    Content [@MrScience2011].
+??? warning
+    Content [@MrScience2011]. :worried:
 
 
 !!! summary
