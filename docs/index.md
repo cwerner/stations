@@ -1,12 +1,10 @@
-[@esurf-2018-14]
-
 ???+ tip "How to use this library in production"
     Content.
     $p(x|y) = \frac{p(y|x)p(x)}{p(y)}$, \(p(x|y) = \frac{p(y|x)p(x)}{p(y)}\).
 
 
 ??? warning "Does not work... :worried:"
-    Content.
+    Content [@MrScience2011].
 
 
 !!! summary
