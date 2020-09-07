@@ -1,3 +1,5 @@
-myst-parser
+mkdocs
+mkdocs-material
+#myst-parser
 #recommonmark
-pydata-sphinx-theme
+#pydata-sphinx-theme

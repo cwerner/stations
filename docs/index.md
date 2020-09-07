@@ -1,32 +1,39 @@
-```{toctree}
-:hidden: true
-:maxdepth: 2
-:caption: My Title
+???+ tip "How to use this library in production"
+    Content.
+    $p(x|y) = \frac{p(y|x)p(x)}{p(y)}$, \(p(x|y) = \frac{p(y|x)p(x)}{p(y)}\).
 
-License <license>
-Authors <authors>
-Changelog <changelog>
-Module Reference <api/modules>
-```
 
-```{include} ../README.md
-:relative-images:
-```
+??? warning "Does not work... :worried:"
+    Content [@MrScience2011].
 
-These pages are generated using {doc}`Sphinx documentation <sphinx:usage/quickstart>`.
-It is formatted in `reStructuredText` and `markdown`. Add additional pages
-by creating md-files in ``docs`` and adding them to the `toctree` above.
 
-It is also possible to refer to the documentation of other Python packages
-with the `Python domain syntax`. By default you can reference the
-documentation of `Sphinx`, `Python`, `NumPy`, `SciPy`, `matplotlib`,
-`Pandas`, `Scikit-Learn`. You can add more by extending the
-``intersphinx_mapping`` in your Sphinx's ``conf.py``.
+!!! summary
 
-The pretty useful extension `autodoc` is activated by default and lets
-you include documentation from docstrings. Docstrings can be written in
-`Google style`.
+    === "Info"
+        | Method      | Description                          |
+        | ----------- | ------------------------------------ |
+        | `GET`       | :material-check:     Fetch resource  |
+        | `PUT`       | :material-check-all: Update resource |
+        | `DELETE`    | :material-close:     Delete resource |
 
-* {ref}`genindex`
-* {ref}`modindex`
-* {ref}`search`
+    === "Code"
+        ```python linenums="1" hl_lines="3-4"
+        import antigravity
+
+        def fly():
+            return "huiiiiiiiiii"
+        ```
+
+    === "Details"
+        Funky advanced Markdown **content**.
+
+        - list item a
+        - list item b
+
+        \begin{align}
+            p(v_i=1|\mathbf{h}) & = \sigma\left(\sum_j w_{ij}h_j + b_i\right) \\
+            p(h_j=1|\mathbf{v}) & = \sigma\left(\sum_i w_{ij}v_i + c_j\right)
+        \end{align}
+
+!!! cite "References"
+    \bibliography
