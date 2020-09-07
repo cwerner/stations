@@ -1,5 +1,0 @@
-mkdocs
-mkdocs-material
-#myst-parser
-#recommonmark
-#pydata-sphinx-theme

@@ -13,7 +13,7 @@ theme:
     highlightjs: true
     hljs_languages:
         - yaml
-        -
+
 extra:
   social:
     - icon: fontawesome/brands/github
