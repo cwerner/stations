@@ -53,5 +53,6 @@ extra_javascript:
 plugins:
     - search
     - bibtex:
+        bib_dir: "docs"
         bib_file: "selpapers.bib"
         cite_style: "pandoc"
