@@ -25,6 +25,7 @@ extra:
 
 nav:
     - Home: index.md
+    - App: "https://stations.cwerner.ai"
     - User Guide:
         - Writing Your Docs: user-guide/writing-your-docs.md
         - Styling Your Docs: user-guide/styling-your-docs.md
