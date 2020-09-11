@@ -7,7 +7,7 @@ import wandb
 
 # A logger for this file
 from loguru import logger as log
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from torch import nn, optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
@@ -33,20 +33,20 @@ def my_app(cfg: DictConfig) -> None:
     # Decide which device we want to run on
     device = torch.device("cuda:0" if cfg.cuda else "cpu")
     log.info(f"Cuda status: {'enabled' if cfg.cuda else 'disabled'} [{device}]")
-
-    # print(OmegaConf.to_yaml(cfg))
+    log.info(OmegaConf.to_yaml(cfg))
 
     INPUT_SIZE = 784  # 28x28
     SAMPLE_SIZE = 80  # 8x10 samples as check image
     NUM_LABELS = 10  # 10 classes
 
     # data
-    data_dir = Path(hydra.utils.get_original_cwd()) / Path(cfg.data_dir)
-    data_dir.mkdir(parents=True, exist_ok=True)
-    sample_dir = Path(hydra.utils.get_original_cwd()) / Path(cfg.sample_dir)
-    sample_dir.mkdir(parents=True, exist_ok=True)
-    model_dir = Path(hydra.utils.get_original_cwd()) / Path(cfg.model_dir)
-    model_dir.mkdir(parents=True, exist_ok=True)
+    base_path = Path(hydra.utils.get_original_cwd())
+    data_dir = base_path / Path(cfg.data_dir)
+    sample_dir = base_path / Path(cfg.sample_dir)
+    model_dir = base_path / Path(cfg.model_dir)
+
+    for d in [data_dir, sample_dir, model_dir]:
+        d.mkdir(parents=True, exist_ok=True)
 
     train_dataset = datasets.MNIST(
         root=data_dir, train=True, download=True, transform=transform
