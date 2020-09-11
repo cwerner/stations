@@ -10,6 +10,9 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
 
+# A logger for this file
+from loguru import logger as log
+
 from models.simplecgan import Discriminator, Generator
 
 
@@ -17,6 +20,7 @@ from models.simplecgan import Discriminator, Generator
 def my_app(cfg: DictConfig) -> None:
 
     cfg.cuda = torch.cuda.is_available()
+    log.debug(f"Cuda status: {'enabled' if cfg.cuda else 'disabled'}")
 
     print(OmegaConf.to_yaml(cfg))
 
