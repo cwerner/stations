@@ -2,7 +2,6 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from loguru import logger as log
 
 class Discriminator(nn.Module):
     def __init__(self):
@@ -29,6 +28,7 @@ class Discriminator(nn.Module):
         x = self.fc2(F.relu(self.fc1(x)))
 
         return torch.sigmoid(x)
+
 
 # TODO: check if init matters!!!
 class Generator(nn.Module):

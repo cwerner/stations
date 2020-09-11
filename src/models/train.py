@@ -3,43 +3,42 @@ from pathlib import Path
 import hydra
 import numpy as np
 import torch
-from omegaconf import DictConfig, OmegaConf
+import wandb
+
+# A logger for this file
+from loguru import logger as log
+from omegaconf import DictConfig
 from torch import nn, optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
 
-import wandb
-
-# A logger for this file
-from loguru import logger as log
-
 from models.simplecgan import Discriminator, Generator
 
-
-transform = transforms.Compose([
+transform = transforms.Compose(
+    [
         transforms.ToTensor(),
-        #transforms.Normalize(mean=(0.5,), std=(0.5,))
-])
+        # transforms.Normalize(mean=(0.5,), std=(0.5,))
+    ]
+)
 
 
 @hydra.main(config_path="conf", config_name="config.yaml")
 def my_app(cfg: DictConfig) -> None:
 
-    wandb.init(project='cgan-mnist-demo', config=cfg)
-    #run_id = wandb.run.id
-
+    wandb.init(project="cgan-mnist-demo", config=cfg)
+    # run_id = wandb.run.id
 
     # Decide which device we want to run on
     device = torch.device("cuda:0" if cfg.cuda else "cpu")
     log.info(f"Cuda status: {'enabled' if cfg.cuda else 'disabled'} [{device}]")
 
-    #print(OmegaConf.to_yaml(cfg))
+    # print(OmegaConf.to_yaml(cfg))
 
-    INPUT_SIZE = 784    # 28x28
-    SAMPLE_SIZE = 80    # 8x10 samples as check image
-    NUM_LABELS = 10     # 10 classes
+    INPUT_SIZE = 784  # 28x28
+    SAMPLE_SIZE = 80  # 8x10 samples as check image
+    NUM_LABELS = 10  # 10 classes
 
     # data
     data_dir = Path(hydra.utils.get_original_cwd()) / Path(cfg.data_dir)
@@ -61,7 +60,6 @@ def my_app(cfg: DictConfig) -> None:
 
     wandb.watch(model_D)
     wandb.watch(model_G)
-    
 
     criterion = nn.BCELoss()
 
@@ -92,12 +90,6 @@ def my_app(cfg: DictConfig) -> None:
 
     optim_discriminator = optim.SGD(model_D.parameters(), lr=cfg.optimizer.lr)
     optim_generator = optim.SGD(model_G.parameters(), lr=cfg.optimizer.lr)
-
-    # adam
-    #lr = 0.0002
-    #beta1 = 0.5
-    #optim_discriminator = optim.Adam(discriminator.parameters(), lr=lr, betas=(beta1, 0.999))
-    #optim_generator = optim.Adam(generator.parameters(), lr=lr, betas=(beta1, 0.999))
 
     fixed_noise = Variable(fixed_noise)
     fixed_labels = Variable(fixed_labels)
@@ -203,16 +195,19 @@ def my_app(cfg: DictConfig) -> None:
 
                 save_image(g_out, f"{sample_dir}/{epoch:02}_{batch_idx:03}.png")
 
-            wandb.log({
-                'g_loss_train': errG.data.item(),
-                'd_loss_train': errD.data.item(),
-                'd_fake_mean': fakeD_mean,
-                'd_real_mean': realD_mean,
-                #'d_real_loss_train': , 
-                'examples': wandb.Image(model_G(fixed_noise, fixed_labels)
-                .data.view(SAMPLE_SIZE, 1, 28, 28)
-                .cpu())
-            })
+            wandb.log(
+                {
+                    "g_loss_train": errG.data.item(),
+                    "d_loss_train": errD.data.item(),
+                    "d_fake_mean": fakeD_mean,
+                    "d_real_mean": realD_mean,
+                    "examples": wandb.Image(
+                        model_G(fixed_noise, fixed_labels)
+                        .data.view(SAMPLE_SIZE, 1, 28, 28)
+                        .cpu()
+                    ),
+                }
+            )
 
         print(
             f"Epoch {epoch} - D loss = {loss_discriminator:.4f}, "
