@@ -104,8 +104,9 @@ def my_app(cfg: DictConfig) -> None:
 
         for batch_idx, (train_x, train_y) in enumerate(train_loader):
             batch_size = train_x.size(0)
-            train_x = train_x.view(-1, INPUT_SIZE)
 
+            # real image
+            train_x = train_x.view(-1, INPUT_SIZE)
             if cfg.cuda:
                 train_x = train_x.cuda()
                 train_y = train_y.cuda()
@@ -122,6 +123,7 @@ def my_app(cfg: DictConfig) -> None:
             inputv = Variable(input)
             labelv = Variable(label).unsqueeze(dim=1)
 
+            # descriminator on real image
             out_d = model_D(inputv, Variable(labels_onehot))
             optim_discriminator.zero_grad()
 
@@ -145,8 +147,11 @@ def my_app(cfg: DictConfig) -> None:
             labelv = Variable(label).unsqueeze(dim=1)
             onehotv = Variable(labels_onehot)
 
-            g_out = model_G(noisev, onehotv)
-            out_d = model_D(g_out, onehotv)
+            # generator on fake image
+            fake_image = model_G(noisev, onehotv)
+
+            # descriminator on real image
+            out_d = model_D(fake_image, onehotv)
 
             errD_fake = criterion(out_d, labelv)
             fakeD_mean = out_d.data.cpu().mean()
