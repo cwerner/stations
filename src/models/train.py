@@ -10,23 +10,36 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
 
+import wandb
+
 # A logger for this file
 from loguru import logger as log
 
 from models.simplecgan import Discriminator, Generator
 
 
+transform = transforms.Compose([
+        transforms.ToTensor(),
+        #transforms.Normalize(mean=(0.5,), std=(0.5,))
+])
+
+
 @hydra.main(config_path="conf", config_name="config.yaml")
 def my_app(cfg: DictConfig) -> None:
 
-    cfg.cuda = torch.cuda.is_available()
-    log.debug(f"Cuda status: {'enabled' if cfg.cuda else 'disabled'}")
+    wandb.init(project='cgan-mnist-demo', config=cfg)
+    #run_id = wandb.run.id
 
-    print(OmegaConf.to_yaml(cfg))
 
-    INPUT_SIZE = 784
-    SAMPLE_SIZE = 80
-    NUM_LABELS = 10
+    # Decide which device we want to run on
+    device = torch.device("cuda:0" if cfg.cuda else "cpu")
+    log.info(f"Cuda status: {'enabled' if cfg.cuda else 'disabled'} [{device}]")
+
+    #print(OmegaConf.to_yaml(cfg))
+
+    INPUT_SIZE = 784    # 28x28
+    SAMPLE_SIZE = 80    # 8x10 samples as check image
+    NUM_LABELS = 10     # 10 classes
 
     # data
     data_dir = Path(hydra.utils.get_original_cwd()) / Path(cfg.data_dir)
@@ -37,14 +50,18 @@ def my_app(cfg: DictConfig) -> None:
     model_dir.mkdir(parents=True, exist_ok=True)
 
     train_dataset = datasets.MNIST(
-        root=data_dir, train=True, download=True, transform=transforms.ToTensor()
+        root=data_dir, train=True, download=True, transform=transform
     )
 
     train_loader = DataLoader(train_dataset, shuffle=True, batch_size=cfg.batch_size)
 
     # models
-    discriminator = Discriminator()
-    generator = Generator(cfg.nz)
+    model_D = Discriminator()
+    model_G = Generator(cfg.nz)
+
+    wandb.watch(model_D)
+    wandb.watch(model_G)
+    
 
     criterion = nn.BCELoss()
 
@@ -64,15 +81,23 @@ def my_app(cfg: DictConfig) -> None:
     # use GPU
 
     if cfg.cuda:
-        generator.cuda()
-        discriminator.cuda()
-        input, label = input.cuda(), label.cuda()
-        noise, fixed_noise = noise.cuda(), fixed_noise.cuda()
+        model_D.cuda()
+        model_G.cuda()
+        input = input.cuda()
+        label = label.cuda()
+        noise = noise.cuda()
+        fixed_noise = fixed_noise.cuda()
         labels_onehot = labels_onehot.cuda()
         fixed_labels = fixed_labels.cuda()
 
-    optim_discriminator = optim.SGD(discriminator.parameters(), lr=cfg.optimizer.lr)
-    optim_generator = optim.SGD(generator.parameters(), lr=cfg.optimizer.lr)
+    optim_discriminator = optim.SGD(model_D.parameters(), lr=cfg.optimizer.lr)
+    optim_generator = optim.SGD(model_G.parameters(), lr=cfg.optimizer.lr)
+
+    # adam
+    #lr = 0.0002
+    #beta1 = 0.5
+    #optim_discriminator = optim.Adam(discriminator.parameters(), lr=lr, betas=(beta1, 0.999))
+    #optim_generator = optim.Adam(generator.parameters(), lr=lr, betas=(beta1, 0.999))
 
     fixed_noise = Variable(fixed_noise)
     fixed_labels = Variable(fixed_labels)
@@ -80,8 +105,8 @@ def my_app(cfg: DictConfig) -> None:
     real_label, fake_label = 1, 0
 
     for epoch in range(cfg.epochs):
-        discriminator.train()
-        generator.train()
+        model_D.train()
+        model_G.train()
 
         loss_discriminator, loss_generator = 0.0, 0.0
 
@@ -103,15 +128,15 @@ def my_app(cfg: DictConfig) -> None:
             labels_onehot.scatter_(1, train_y.view(batch_size, 1), 1)
 
             inputv = Variable(input)
-            labelv = Variable(label)
+            labelv = Variable(label).unsqueeze(dim=1)
 
-            output = discriminator(inputv, Variable(labels_onehot))
+            out_d = model_D(inputv, Variable(labels_onehot))
             optim_discriminator.zero_grad()
 
-            errD_real = criterion(output, labelv)
+            errD_real = criterion(out_d, labelv)
             errD_real.backward()
 
-            realD_mean = output.data.cpu().mean()
+            realD_mean = out_d.data.cpu().mean()
 
             labels_onehot.zero_()
             rand_y = torch.from_numpy(
@@ -125,14 +150,14 @@ def my_app(cfg: DictConfig) -> None:
             label.resize_(batch_size).fill_(fake_label)
 
             noisev = Variable(noise)
-            labelv = Variable(label)
+            labelv = Variable(label).unsqueeze(dim=1)
             onehotv = Variable(labels_onehot)
 
-            g_out = generator(noisev, onehotv)
-            output = discriminator(g_out, onehotv)
+            g_out = model_G(noisev, onehotv)
+            out_d = model_D(g_out, onehotv)
 
-            errD_fake = criterion(output, labelv)
-            fakeD_mean = output.data.cpu().mean()
+            errD_fake = criterion(out_d, labelv)
+            fakeD_mean = out_d.data.cpu().mean()
             errD = errD_real + errD_fake
             errD_fake.backward()
 
@@ -152,10 +177,10 @@ def my_app(cfg: DictConfig) -> None:
             onehotv = Variable(labels_onehot)
 
             noisev = Variable(noise)
-            labelv = Variable(label)
-            g_out = generator(noisev, onehotv)
-            output = discriminator(g_out, onehotv)
-            errG = criterion(output, labelv)
+            labelv = Variable(label).unsqueeze(dim=1)
+            g_out = model_G(noisev, onehotv)
+            d_out = model_D(g_out, onehotv)
+            errG = criterion(d_out, labelv)
 
             optim_generator.zero_grad()
             errG.backward()
@@ -164,19 +189,30 @@ def my_app(cfg: DictConfig) -> None:
             loss_discriminator += errD.data.item()
             loss_generator += errG.data.item()
 
-            if batch_idx % 5 == 0:
-                print(
-                    f"\t {epoch} ({batch_idx} / {len(train_loader)}) mean D(fake)"
-                    f"= {fakeD_mean}, mean D(real) = {realD_mean}"
+            if batch_idx % 10 == 0:
+                log.info(
+                    f"{epoch:02d} ({batch_idx:03d}/{len(train_loader)}) mean D(fake)"
+                    f"= {fakeD_mean:.5f}, mean D(real) = {realD_mean:.5f}"
                 )
 
                 g_out = (
-                    generator(fixed_noise, fixed_labels)
+                    model_G(fixed_noise, fixed_labels)
                     .data.view(SAMPLE_SIZE, 1, 28, 28)
                     .cpu()
                 )
 
                 save_image(g_out, f"{sample_dir}/{epoch:02}_{batch_idx:03}.png")
+
+            wandb.log({
+                'g_loss_train': errG.data.item(),
+                'd_loss_train': errD.data.item(),
+                'd_fake_mean': fakeD_mean,
+                'd_real_mean': realD_mean,
+                #'d_real_loss_train': , 
+                'examples': wandb.Image(model_G(fixed_noise, fixed_labels)
+                .data.view(SAMPLE_SIZE, 1, 28, 28)
+                .cpu())
+            })
 
         print(
             f"Epoch {epoch} - D loss = {loss_discriminator:.4f}, "
@@ -184,11 +220,11 @@ def my_app(cfg: DictConfig) -> None:
         )
         if epoch % 2 == 0:
             torch.save(
-                {"state_dict": discriminator.state_dict()},
+                {"state_dict": model_D.state_dict()},
                 f"{model_dir}/model_d_epoch_{epoch}.pth",
             )
             torch.save(
-                {"state_dict": generator.state_dict()},
+                {"state_dict": model_G.state_dict()},
                 f"{model_dir}/model_g_epoch_{epoch}.pth",
             )
 

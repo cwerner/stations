@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from loguru import logger as log
 
 class Discriminator(nn.Module):
     def __init__(self):
@@ -29,11 +30,11 @@ class Discriminator(nn.Module):
 
         return torch.sigmoid(x)
 
-
+# TODO: check if init matters!!!
 class Generator(nn.Module):
     def __init__(self, z_dim):
+        super().__init__()
         self.z_dim = z_dim
-        super(Generator, self).__init__()
         self.fc2 = nn.Linear(10, 1000)
         self.fc = nn.Linear(self.z_dim + 1000, 64 * 28 * 28)
         self.bn1 = nn.BatchNorm2d(64)
@@ -53,5 +54,4 @@ class Generator(nn.Module):
 
         x = F.relu(self.bn2(self.deconv1(x)))
         x = self.deconv2(x)
-
         return torch.sigmoid(x)
