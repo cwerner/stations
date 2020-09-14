@@ -55,8 +55,8 @@ def my_app(cfg: DictConfig) -> None:
     train_loader = DataLoader(train_dataset, shuffle=True, batch_size=cfg.batch_size)
 
     # models
-    model_D = Discriminator()
-    model_G = Generator(cfg.nz)
+    model_D = Discriminator().to(device)
+    model_G = Generator(cfg.nz).to(device)
 
     wandb.watch(model_D)
     wandb.watch(model_G)
@@ -68,7 +68,7 @@ def my_app(cfg: DictConfig) -> None:
     label = torch.FloatTensor(cfg.batch_size)
     labels_onehot = torch.FloatTensor(cfg.batch_size, 10)
 
-    fixed_noise = torch.FloatTensor(SAMPLE_SIZE, cfg.nz).normal_(0, 1)
+    fixed_noise = torch.randn(SAMPLE_SIZE, cfg.nz).to(device)
 
     # TODO: check the outcome and simplify
     fixed_labels = torch.zeros(SAMPLE_SIZE, NUM_LABELS)
@@ -79,19 +79,16 @@ def my_app(cfg: DictConfig) -> None:
     # use GPU
 
     if cfg.cuda:
-        model_D.cuda()
-        model_G.cuda()
         input = input.cuda()
         label = label.cuda()
         noise = noise.cuda()
-        fixed_noise = fixed_noise.cuda()
         labels_onehot = labels_onehot.cuda()
         fixed_labels = fixed_labels.cuda()
 
     optim_discriminator = optim.SGD(model_D.parameters(), lr=cfg.optimizer.lr)
     optim_generator = optim.SGD(model_G.parameters(), lr=cfg.optimizer.lr)
 
-    fixed_noise = Variable(fixed_noise)
+    # fixed_noise = Variable(fixed_noise)
     fixed_labels = Variable(fixed_labels)
 
     real_label, fake_label = 1, 0
