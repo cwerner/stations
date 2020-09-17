@@ -233,10 +233,10 @@ def my_app(cfg: DictConfig) -> None:
                 }
             )
 
-        print(
-            f"Epoch {epoch} - D loss = {loss_discriminator:.4f}, "
-            f"G loss = {loss_generator:.4f}"
-        )
+        # print(
+        #    f"Epoch {epoch} - D loss = {loss_discriminator:.4f}, "
+        #    f"G loss = {loss_generator:.4f}"
+        # )
         if epoch % 2 == 0:
             torch.save(
                 {"state_dict": model_D.state_dict()},
