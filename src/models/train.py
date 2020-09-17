@@ -17,6 +17,17 @@ from torchvision.utils import save_image
 
 from models.simplecgan import Discriminator, Generator
 
+
+# custom weights initialization called on netG and netD
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find("Conv") != -1:
+        nn.init.normal_(m.weight.data, 0.0, 0.02)
+    elif classname.find("BatchNorm") != -1:
+        nn.init.normal_(m.weight.data, 1.0, 0.02)
+        nn.init.constant_(m.bias.data, 0)
+
+
 transform = transforms.Compose(
     [
         transforms.ToTensor(),
@@ -77,11 +88,14 @@ def my_app(cfg: DictConfig) -> None:
     train_loader = DataLoader(train_dataset, shuffle=True, batch_size=cfg.batch_size)
 
     # models
-    model_D = Discriminator().to(device)
-    model_G = Generator(cfg.nz).to(device)
+    D = Discriminator().to(device)
+    G = Generator(cfg.nz).to(device)
 
-    wandb.watch(model_D)
-    wandb.watch(model_G)
+    D.apply(weights_init)
+    G.apply(weights_init)
+
+    wandb.watch(D)
+    wandb.watch(G)
 
     criterion = nn.BCELoss()
 
@@ -107,17 +121,27 @@ def my_app(cfg: DictConfig) -> None:
         labels_onehot = labels_onehot.cuda()
         fixed_labels = fixed_labels.cuda()
 
-    optim_discriminator = optim.SGD(model_D.parameters(), lr=cfg.optimizer.lr)
-    optim_generator = optim.SGD(model_G.parameters(), lr=cfg.optimizer.lr)
-
+    if cfg.optimizer.type == "sgd":
+        optim_discriminator = optim.SGD(D.parameters(), lr=cfg.optimizer.lr)
+        optim_generator = optim.SGD(G.parameters(), lr=cfg.optimizer.lr)
+    elif cfg.optimizer.type == "adam":
+        optim_discriminator = optim.Adam(
+            D.parameters(), lr=cfg.optimizer.lr, betas=(cfg.optimizer.beta, 0.999)
+        )
+        optim_generator = optim.Adam(
+            G.parameters(), lr=cfg.optimizer.lr, betas=(cfg.optimizer.beta, 0.999)
+        )
+    else:
+        log.error(f"Optimizer setup '{cfg.optimizer.type}' not valid")
+        sys.exit(-1)
     # fixed_noise = Variable(fixed_noise)
     fixed_labels = Variable(fixed_labels)
 
     real_label, fake_label = 1, 0
 
     for epoch in range(cfg.epochs):
-        model_D.train()
-        model_G.train()
+        D.train()
+        G.train()
 
         loss_discriminator, loss_generator = 0.0, 0.0
 
@@ -143,7 +167,7 @@ def my_app(cfg: DictConfig) -> None:
             labelv = Variable(label).unsqueeze(dim=1)
 
             # descriminator on real image
-            out_d = model_D(inputv, Variable(labels_onehot))
+            out_d = D(inputv, Variable(labels_onehot))
             optim_discriminator.zero_grad()
 
             errD_real = criterion(out_d, labelv)
@@ -167,10 +191,10 @@ def my_app(cfg: DictConfig) -> None:
             onehotv = Variable(labels_onehot)
 
             # generator on fake image
-            fake_image = model_G(noisev, onehotv)
+            fake_image = G(noisev, onehotv)
 
             # descriminator on real image
-            out_d = model_D(fake_image, onehotv)
+            out_d = D(fake_image, onehotv)
 
             errD_fake = criterion(out_d, labelv)
             fakeD_mean = out_d.data.cpu().mean()
@@ -194,8 +218,8 @@ def my_app(cfg: DictConfig) -> None:
 
             noisev = Variable(noise)
             labelv = Variable(label).unsqueeze(dim=1)
-            g_out = model_G(noisev, onehotv)
-            d_out = model_D(g_out, onehotv)
+            g_out = G(noisev, onehotv)
+            d_out = D(g_out, onehotv)
             errG = criterion(d_out, labelv)
 
             optim_generator.zero_grad()
@@ -212,9 +236,7 @@ def my_app(cfg: DictConfig) -> None:
                 )
 
                 g_out = (
-                    model_G(fixed_noise, fixed_labels)
-                    .data.view(SAMPLE_SIZE, 1, 28, 28)
-                    .cpu()
+                    G(fixed_noise, fixed_labels).data.view(SAMPLE_SIZE, 1, 28, 28).cpu()
                 )
 
                 save_image(g_out, f"{sample_dir}/{epoch:02}_{batch_idx:03}.png")
@@ -226,7 +248,7 @@ def my_app(cfg: DictConfig) -> None:
                     "d_fake_mean": fakeD_mean,
                     "d_real_mean": realD_mean,
                     "examples": wandb.Image(
-                        model_G(fixed_noise, fixed_labels)
+                        G(fixed_noise, fixed_labels)
                         .data.view(SAMPLE_SIZE, 1, 28, 28)
                         .cpu()
                     ),
@@ -239,11 +261,11 @@ def my_app(cfg: DictConfig) -> None:
         # )
         if epoch % 2 == 0:
             torch.save(
-                {"state_dict": model_D.state_dict()},
+                {"state_dict": D.state_dict()},
                 f"{model_dir}/model_d_epoch_{epoch}.pth",
             )
             torch.save(
-                {"state_dict": model_G.state_dict()},
+                {"state_dict": G.state_dict()},
                 f"{model_dir}/model_g_epoch_{epoch}.pth",
             )
 
