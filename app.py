@@ -1,9 +1,9 @@
-import datetime
+from datetime import datetime, timedelta
 from typing import Collection, Tuple
 
 import streamlit as st
-from dwdweather import DwdWeather
 from streamlit_folium import folium_static
+from wetterdienst import Parameter, PeriodType, TimeResolution, get_nearby_stations
 
 from stations.helper.custom_types import StationsType
 from stations.ui.ifu_data import Resolution, ifu, tereno_stations
@@ -21,50 +21,38 @@ METRICS = REGISTRY.get_metrics()
 @st.cache
 @METRICS.REQUEST_TIME.time()
 def find_close_stations(
-    dist: int = 50, res: Resolution = Resolution.HOURLY
+    dist: int = 50,
+    res: TimeResolution = TimeResolution.HOURLY,
+    start: datetime = datetime(2020, 1, 1),
+    end: datetime = datetime(2020, 1, 31),
 ) -> StationsType:
     """Find closest stations (dist: radius in km)"""
 
-    dwd = DwdWeather(resolution=res.value)
-    return dwd.nearest_station(
-        lat=ifu["geo_lat"], lon=ifu["geo_lon"], surrounding=dist * 1000
+    stations_df = get_nearby_stations(
+        ifu["geo_lat"],
+        ifu["geo_lon"],
+        start,
+        end,
+        Parameter.TEMPERATURE_AIR,
+        res,
+        PeriodType.RECENT,
+        max_distance_in_km=dist,
     )
 
+    # TODO: use wetterdienst format instead of converting to dwdweather2 conventions
+    filtered_stations = []
+    for _, row in stations_df.iterrows():
+        data = {
+            "station_id": row.STATION_ID,
+            "geo_lat": row.LAT,
+            "geo_lon": row.LON,
+            "date_start": row.FROM_DATE.strftime("%Y%m%d"),
+            "date_end": row.TO_DATE.strftime("%Y%m%d"),
+            "name": row.STATION_NAME,
+        }
+        filtered_stations.append(data)
 
-# @st.cache
-def fetch_data(res: Resolution = Resolution.HOURLY):
-
-    # Create client object.
-    dwd = DwdWeather(resolution=res.value)
-
-    # Find closest station to position.
-    nearest = dwd.nearest_station(lat=ifu["geo_lat"], lon=ifu["geo_lon"])
-
-    st.write(nearest)
-
-    # The hour you're interested in.
-    # The example is 2014-03-22 12:00 (UTC).
-    query_hour = datetime.datetime(2014, 3, 22, 12, 10)
-
-    result = dwd.query(station_id=nearest["station_id"], timestamp=query_hour)
-    return result
-
-
-def filter_by_dates(stations: StationsType, start: int, end: int) -> StationsType:
-    filtered = []
-    for station in stations:
-        start_date = datetime.datetime.strptime(str(station["date_start"]), "%Y%m%d")
-        if start_date.day != 1 or start_date.month != 1:
-            start_year = start_date.year + 1
-        else:
-            start_year = start_date.year
-
-        end_date = datetime.datetime.strptime(str(station["date_end"]), "%Y%m%d")
-        end_year = end_date.year
-
-        if start_year <= start and end_year >= end:
-            filtered.append(station)
-    return filtered
+    return filtered_stations
 
 
 def create_sidebar() -> Tuple[Resolution, int, Collection[int]]:
@@ -94,12 +82,26 @@ def main():
 
     data_resolution, max_station_distance, observation_years = create_sidebar()
 
-    closest_stations = find_close_stations(
-        dist=max_station_distance, res=data_resolution
+    today = datetime(
+        datetime.now().date().year,
+        datetime.now().date().month,
+        datetime.now().date().day,
     )
-    filtered_stations = filter_by_dates(closest_stations, *observation_years)
+    before_1week = today - timedelta(days=7)
 
-    create_mainpage(filtered_stations, tereno_stations, max_station_distance)
+    end_date = (
+        today
+        if observation_years[1] == before_1week.year
+        else datetime(observation_years[1], 12, 31)
+    )
+    print(f"X: {end_date}")
+    closest_stations = find_close_stations(
+        dist=max_station_distance,
+        res=data_resolution,
+        start=datetime(observation_years[0], 1, 1),
+        end=end_date,
+    )
+    create_mainpage(closest_stations, tereno_stations, max_station_distance)
 
 
 if __name__ == "__main__":
