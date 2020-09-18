@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 from typing import Collection, Tuple
 
@@ -16,6 +17,8 @@ from stations.ui.mainpage_map import create_map
 from stations.ui.metrics import REGISTRY
 
 METRICS = REGISTRY.get_metrics()
+
+logging.getLogger("numexpr").setLevel(logging.WARNING)
 
 
 @st.cache
@@ -94,7 +97,6 @@ def main():
         if observation_years[1] == before_1week.year
         else datetime(observation_years[1], 12, 31)
     )
-    print(f"X: {end_date}")
     closest_stations = find_close_stations(
         dist=max_station_distance,
         res=data_resolution,
