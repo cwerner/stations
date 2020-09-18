@@ -55,23 +55,6 @@ def find_close_stations(
     return filtered_stations
 
 
-def filter_by_dates(stations: StationsType, start: int, end: int) -> StationsType:
-    filtered = []
-    for station in stations:
-        start_date = datetime.strptime(str(station["date_start"]), "%Y%m%d")
-        if start_date.day != 1 or start_date.month != 1:
-            start_year = start_date.year + 1
-        else:
-            start_year = start_date.year
-
-        end_date = datetime.strptime(str(station["date_end"]), "%Y%m%d")
-        end_year = end_date.year
-
-        if start_year <= start and end_year >= end:
-            filtered.append(station)
-    return filtered
-
-
 def create_sidebar() -> Tuple[Resolution, int, Collection[int]]:
     res = select_data_resolution()
     dist = select_max_station_distance()
