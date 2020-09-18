@@ -111,7 +111,7 @@ def main(cfg: DWDConfig) -> None:
         else:
             invalid += 1
 
-    print(f"invalid: {invalid}, valid: {valid}")
+    log.info(f"invalid: {invalid}, valid: {valid}")
     for i, sample in enumerate(samples):
         # if i % 100 == 0: print(i)
         if i < len(samples) * (1 - cfg.valid_ratio):

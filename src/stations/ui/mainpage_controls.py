@@ -1,13 +1,16 @@
 import streamlit as st
-
-from stations.ui.ifu_data import Resolution
+from wetterdienst.enumerations.time_resolution_enumeration import TimeResolution
 
 
 def select_data_resolution():
     return st.sidebar.selectbox(
         "Data resolution",
-        Resolution.names(),
-        format_func=lambda x: x.value.replace("_", " ").capitalize(),
+        [
+            x
+            for x in list(TimeResolution)
+            if x in [TimeResolution.MINUTES_10, TimeResolution.HOURLY]
+        ],
+        format_func=lambda x: x.value.replace("_", " ").lower(),
     )
 
 
