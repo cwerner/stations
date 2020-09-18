@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Collection, Tuple
 
 import streamlit as st
@@ -82,13 +82,19 @@ def main():
 
     data_resolution, max_station_distance, observation_years = create_sidebar()
 
-    today = datetime.now().date()
+    today = datetime(
+        datetime.now().date().year,
+        datetime.now().date().month,
+        datetime.now().date().day,
+    )
+    before_1week = today - timedelta(days=7)
+
     end_date = (
         today
-        if observation_years[1] == today.year
+        if observation_years[1] == before_1week.year
         else datetime(observation_years[1], 12, 31)
     )
-
+    print(f"X: {end_date}")
     closest_stations = find_close_stations(
         dist=max_station_distance,
         res=data_resolution,

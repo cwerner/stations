@@ -1,14 +1,21 @@
+import itertools
+import logging
 import random
 import sys
+import warnings
 from dataclasses import dataclass, field
 from datetime import timedelta
+from functools import reduce
 from pathlib import Path
 from typing import Collection
 
 import hydra
+import pandas as pd
 from hydra.core.config_store import ConfigStore
 from loguru import logger as log
 from wetterdienst import DWDStationRequest, Parameter, TimeResolution
+
+warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 
 # TODO: move this to general utility module
@@ -31,15 +38,19 @@ def formatter(record):
 log.remove()
 log.add(sys.stderr, format=formatter)
 
+# silence logging from imports
+logging.getLogger("wetterdienst").setLevel(logging.WARNING)
+logging.getLogger("numexpr").setLevel(logging.WARNING)
+
 
 @dataclass
 class DWDConfig:
     res: str = "hourly"
     start_date: str = "2005-01-01"
     end_date: str = "2020-06-30"
-    stations: Collection[int] = field(default_factory=lambda: [2290, 2542])
+    stations: Collection[int] = field(default_factory=lambda: [2290, 2542, 5538])
     valid_ratio: float = 0.2
-    sample_hours: int = 32
+    sample_hours: int = 72
 
 
 cs = ConfigStore.instance()
@@ -53,9 +64,9 @@ def main(cfg: DWDConfig) -> None:
     (base_path / "data" / "DWD" / "test").mkdir(exist_ok=True, parents=True)
     (base_path / "data" / "DWD" / "train").mkdir(exist_ok=True, parents=True)
 
-    # hohenpeissenberg, kaufbeuren
+    # hohenpeissenberg, wielenbach, altenstadt
     # target, supplier(s)
-    # ids: (2290, 2542)
+    # ids: (2290, 5538, 125)
 
     if cfg.res == "hourly":
         res = TimeResolution.HOURLY
@@ -82,20 +93,27 @@ def main(cfg: DWDConfig) -> None:
     dfs = []
     for df in request.collect_data():
         # sid = df.iloc[0]["STATION_ID"]
-        df2 = df[["ELEMENT", "DATE", "VALUE"]]
-        df3 = df2.pivot(index="DATE", columns="ELEMENT", values="VALUE")
-        dfs.append(df3[["PRECIPITATION_HEIGHT", "TEMPERATURE_AIR_200"]])
+        df = df[["ELEMENT", "DATE", "VALUE"]]
+        df = df.pivot(index="DATE", columns="ELEMENT", values="VALUE")
+        dfs.append(df[["PRECIPITATION_HEIGHT", "TEMPERATURE_AIR_200"]])
 
     # merge and keep indices
-    log.warning(f"Only using 2 stations for now (target, source): {cfg.stations[:2]}")
-    df = dfs[0].merge(dfs[1], how="inner", left_index=True, right_index=True)
-    df.columns = ["TARGET_PRCP", "TARGET_TEMP", "SOURCE_PRCP", "SOURCE_TEMP"]
+    df = reduce(
+        lambda df_left, df_right: pd.merge(
+            df_left, df_right, left_index=True, right_index=True, how="outer"
+        ),
+        dfs,
+    )
+
+    target_cols = ["TARGET_PRCP", "TARGET_TEMP"]
+    source_cols = [[f"SRC{d:02d}_PRCP", f"SRC{d:02d}_TEMP"] for d in range(1, len(dfs))]
+    df.columns = target_cols + list(itertools.chain(*source_cols))
 
     log.debug(f"Sample:\n{df.head()}")
 
     n = len(df)
     rows = range(n)
-    row_idx = sorted(random.choices(rows, k=n // 5))
+    row_idx = sorted(random.choices(rows, k=n // 3))
 
     samples = []
     valid, invalid = 0, 0
