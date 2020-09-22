@@ -4,9 +4,6 @@ import hydra
 import numpy as np
 import torch
 import wandb
-
-# A logger for this file
-from loguru import logger as log
 from omegaconf import DictConfig, OmegaConf
 from torch import nn, optim
 from torch.autograd import Variable
@@ -15,6 +12,7 @@ from torchvision import datasets, transforms
 from torchvision.utils import save_image
 
 from models.simplecgan import Discriminator, Generator, weights_init
+from utils.io.logging import log
 from utils.io.pathlib_extensions import Path
 
 transform = transforms.Compose(
@@ -23,27 +21,6 @@ transform = transforms.Compose(
         # transforms.Normalize(mean=(0.5,), std=(0.5,))
     ]
 )
-
-
-# small loguru modification to allow multi-line logging
-def formatter(record):
-    lines = record["message"].splitlines()
-    prefix = (
-        "{time:YY-MM-DD HH:mm:ss.S} | {level.name:<8} | "
-        + "{file}.{function}:{line} - ".format(**record)
-    )
-    indented = (
-        lines[0] + "\n" + "\n".join(" " * len(prefix) + line for line in lines[1:])
-    )
-    record["message"] = indented.strip()
-    return (
-        "<g>{time:YY-MM-DD HH:mm:ss.S}</> | <lvl>{level.name:<8}</> | "
-        + "<e>{file}.{function}:{line}</> - <lvl>{message}\n</>{exception}"
-    )
-
-
-log.remove()
-log.add(sys.stderr, format=formatter)
 
 
 @hydra.main(config_path="conf", config_name="config.yaml")
