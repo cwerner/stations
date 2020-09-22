@@ -5,7 +5,8 @@ from torch import nn
 
 class Discriminator(nn.Module):
     def __init__(self):
-        super().__init__()
+        super(Discriminator, self).__init__()
+
         self.conv1 = nn.Conv2d(1, 32, 5, 1, 2)
         self.bn1 = nn.BatchNorm2d(32)
         self.conv2 = nn.Conv2d(32, 64, 5, 1, 2)
@@ -17,30 +18,30 @@ class Discriminator(nn.Module):
     def forward(self, x, labels):
         batch_size = x.size(0)
         x = x.view(batch_size, 1, 28, 28)
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
+        x = F.leaky_relu(self.bn1(self.conv1(x)), 0.1)
+        x = F.leaky_relu(self.bn2(self.conv2(x)), 0.1)
 
         # concat
         x = x.view(batch_size, 64 * 28 * 28)
-        y_ = F.relu(self.fc3(labels))
+        y_ = F.leaky_relu(self.fc3(labels), 0.1)
         x = torch.cat([x, y_], 1)
 
-        x = self.fc2(F.relu(self.fc1(x)))
+        x = self.fc2(F.leaky_relu(self.fc1(x), 0.1))
 
         return torch.sigmoid(x)
 
 
-# TODO: check if init matters!!!
 class Generator(nn.Module):
     def __init__(self, z_dim):
-        super().__init__()
+        super(Generator, self).__init__()
+
         self.z_dim = z_dim
         self.fc2 = nn.Linear(10, 1000)
         self.fc = nn.Linear(self.z_dim + 1000, 64 * 28 * 28)
         self.bn1 = nn.BatchNorm2d(64)
-        self.deconv1 = nn.ConvTranspose2d(64, 32, 5, 1, 2)
+        self.deconv1 = nn.ConvTranspose2d(64, 32, 5, 1, 2, bias=False)
         self.bn2 = nn.BatchNorm2d(32)
-        self.deconv2 = nn.ConvTranspose2d(32, 1, 5, 1, 2)
+        self.deconv2 = nn.ConvTranspose2d(32, 1, 5, 1, 2, bias=False)
 
     def forward(self, x, labels):
         batch_size = x.size(0)
@@ -55,3 +56,12 @@ class Generator(nn.Module):
         x = F.relu(self.bn2(self.deconv1(x)))
         x = self.deconv2(x)
         return torch.sigmoid(x)
+
+
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find("Conv") != -1:
+        m.weight.data.normal_(0.0, 0.02)
+    elif classname.find("BatchNorm") != -1:
+        m.weight.data.normal_(1.0, 0.02)
+        m.bias.data.fill_(0)
