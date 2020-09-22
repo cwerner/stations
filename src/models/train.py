@@ -1,5 +1,4 @@
 import sys
-from pathlib import Path
 
 import hydra
 import numpy as np
@@ -16,23 +15,7 @@ from torchvision import datasets, transforms
 from torchvision.utils import save_image
 
 from models.simplecgan import Discriminator, Generator, weights_init
-
-
-class NoCheckpointError(BaseException):
-    pass
-
-
-# TODO: move to auxillary file
-def latest(self: Path, pattern: str = "*"):
-    files = self.glob(pattern)
-    try:
-        max(files, key=lambda x: x.stat().st_ctime)
-    except ValueError:
-        raise NoCheckpointError
-    return max(files, key=lambda x: x.stat().st_ctime)
-
-
-Path.latest = latest
+from utils.io.pathlib_extensions import Path
 
 transform = transforms.Compose(
     [
@@ -167,7 +150,7 @@ def my_app(cfg: DictConfig) -> None:
                 cfg.epochs = cfg.epochs + cfg.epochs
                 log.warning("Resume epoch > config number of epochs.")
             log.info(f"Resuming run. Starting at epoch {start_epoch}/ {cfg.epochs}")
-        except NoCheckpointError:
+        except FileNotFoundError:
             log.warning("No checkpoint present, starting from scratch")
 
     if cfg.clean:
