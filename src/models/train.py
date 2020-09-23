@@ -17,7 +17,6 @@ from utils.io.pathlib_extensions import Path
 transform = transforms.Compose(
     [
         transforms.ToTensor(),
-        # transforms.Normalize(mean=(0.5,), std=(0.5,))
     ]
 )
 
@@ -25,7 +24,7 @@ transform = transforms.Compose(
 @hydra.main(config_path="conf", config_name="config.yaml")
 def my_app(cfg: DictConfig) -> None:
 
-    wandb.init(project="cgan-mnist-demo", config=cfg)
+    wandb.init(project="cgan-mnist-demo", config=cfg, tags=["test"])
     run_id = wandb.run.id
     log.info(f"Run ID: {run_id}")
 
@@ -46,13 +45,6 @@ def my_app(cfg: DictConfig) -> None:
 
     for d in [data_dir, sample_dir, model_dir]:
         d.mkdir(parents=True, exist_ok=True)
-
-    transform = transforms.Compose(
-        [
-            transforms.ToTensor(),
-            # transforms.Normalize((0.1307,), (0.3081,)),
-        ]
-    )
 
     train_data = datasets.MNIST(
         data_dir, train=True, download=True, transform=transform
@@ -79,10 +71,10 @@ def my_app(cfg: DictConfig) -> None:
 
     criterion = nn.BCELoss()
 
-    input = torch.FloatTensor(cfg.batch_size, INPUT_SIZE)
-    noise = torch.FloatTensor(cfg.batch_size, (cfg.nz))
-    label = torch.FloatTensor(cfg.batch_size)
-    labels_onehot = torch.FloatTensor(cfg.batch_size, 10)
+    input = torch.FloatTensor(cfg.batch_size, INPUT_SIZE).to(device)
+    noise = torch.FloatTensor(cfg.batch_size, (cfg.nz)).to(device)
+    label = torch.FloatTensor(cfg.batch_size).to(device)
+    label_id = torch.FloatTensor(cfg.batch_size, 10).to(device)
 
     fixed_noise = torch.randn(SAMPLE_SIZE, cfg.nz).to(device)
 
@@ -91,11 +83,6 @@ def my_app(cfg: DictConfig) -> None:
     for i in range(NUM_LABELS):
         for j in range(SAMPLE_SIZE // NUM_LABELS):
             fixed_labels[i * (SAMPLE_SIZE // NUM_LABELS) + j, i] = 1.0
-
-    input = input.to(device)
-    label = label.to(device)
-    noise = noise.to(device)
-    labels_onehot = labels_onehot.to(device)
     fixed_labels = fixed_labels.to(device)
 
     if cfg.optimizer.type == "sgd":
@@ -146,90 +133,94 @@ def my_app(cfg: DictConfig) -> None:
             batch_size = train_x.size(0)
 
             # real image
-            train_x = train_x.view(-1, INPUT_SIZE)
-            train_x = train_x.to(device)
-            train_y = train_y.to(device)
+            # original shape: (bs) x (c) x (w) x (h)
+            train_x = train_x.view(-1, INPUT_SIZE).to(device)  # (bs) 128 x (data) 784
+            train_y = train_y.to(device)  # (bs)
 
-            # TODO: check these lines
+            # copy data into input and mark with label=1
             input.resize_as_(train_x).copy_(train_x)
+
+            # TODO: rename label to y_isreal, label_id to train_y_onehot
             label.resize_(batch_size).fill_(real_label)
+            label_id.resize_(batch_size, NUM_LABELS).zero_()
 
-            labels_onehot.resize_(batch_size, NUM_LABELS).zero_()
-
-            # TODO: check out scatter
-            labels_onehot.scatter_(1, train_y.view(batch_size, 1), 1)
+            # one-hot encoded class id
+            label_id.scatter_(1, train_y.view(batch_size, 1), 1)
 
             # descriminator on real image
-            out_d = D(input, labels_onehot)  # Variable(labels_onehot))
+            d_real = D(input, label_id)
+
             optim_D.zero_grad()
 
-            errD_real = criterion(out_d, label.unsqueeze(dim=1))
-            errD_real.backward()
+            d_real_err = criterion(d_real, label.unsqueeze(dim=1))
+            d_real_err.backward()
 
-            realD_mean = out_d.data.cpu().mean()
+            d_real_mean = d_real.data.cpu().mean()
 
-            labels_onehot.zero_()
+            label_id.zero_()
             rand_y = torch.from_numpy(
                 np.random.randint(0, NUM_LABELS, size=(batch_size, 1))
             )
             rand_y = rand_y.to(device)
 
-            labels_onehot.scatter_(1, rand_y.view(batch_size, 1), 1)
+            label_id.scatter_(1, rand_y.view(batch_size, 1), 1)
             noise.resize_(batch_size, cfg.nz).normal_(0, 1)
             label.resize_(batch_size).fill_(fake_label)
 
             # generator on fake image
-            fake_image = G(noise, labels_onehot)
+            fake_image = G(noise, label_id)
 
             # descriminator on real image
-            out_d = D(fake_image, labels_onehot)
+            d_fake = D(fake_image, label_id)
 
-            errD_fake = criterion(out_d, label.unsqueeze(dim=1))
-            fakeD_mean = out_d.data.cpu().mean()
-            errD = errD_real + errD_fake
-            errD_fake.backward()
+            d_fake_err = criterion(d_fake, label.unsqueeze(dim=1))
+            d_fake_mean = d_fake.data.cpu().mean()
+            d_err = (d_real_err + d_fake_err) / 2
+
+            d_fake_err.backward()
 
             optim_D.step()
 
             # train the G
             noise.normal_(0, 1)
-            labels_onehot.zero_()
+            label_id.zero_()
             rand_y = torch.from_numpy(
                 np.random.randint(0, NUM_LABELS, size=(batch_size, 1))
             )
             rand_y = rand_y.to(device)
 
-            labels_onehot.scatter_(1, rand_y.view(batch_size, 1), 1)
+            label_id.scatter_(1, rand_y.view(batch_size, 1), 1)
             label.resize_(batch_size).fill_(real_label)
-            g_out = G(noise, labels_onehot)
-            d_out = D(g_out, labels_onehot)
-            errG = criterion(d_out, label.unsqueeze(dim=1))
+
+            fake_image = G(noise, label_id)
+            d_fake = D(fake_image, label_id)
+            g_err = criterion(d_fake, label.unsqueeze(dim=1))
 
             optim_G.zero_grad()
-            errG.backward()
+            g_err.backward()
             optim_G.step()
 
-            loss_discriminator += errD.data.item()
-            loss_generator += errG.data.item()
+            loss_discriminator += d_err.data.item()
+            loss_generator += g_err.data.item()
 
-            if batch_idx % 10 == 0:
+            if batch_idx % 25 == 0:
                 log.info(
                     f"{epoch:02d} ({batch_idx:03d}/{len(train_loader)}) mean D(fake)"
-                    f"= {fakeD_mean:.5f}, mean D(real) = {realD_mean:.5f}"
+                    f"= {d_fake_mean:.5f}, mean D(real) = {d_real_mean:.5f}"
                 )
 
-                g_out = (
+                fake_image = (
                     G(fixed_noise, fixed_labels).data.view(SAMPLE_SIZE, 1, 28, 28).cpu()
                 )
 
-                save_image(g_out, f"{sample_dir}/{epoch:02}_{batch_idx:03}.png")
+                save_image(fake_image, f"{sample_dir}/{epoch:02}_{batch_idx:03}.png")
 
             wandb.log(
                 {
-                    "g_loss_train": errG.data.item(),
-                    "d_loss_train": errD.data.item(),
-                    "d_fake_mean": fakeD_mean,
-                    "d_real_mean": realD_mean,
+                    "g_loss_train": g_err.data.item(),
+                    "d_loss_train": d_err.data.item(),
+                    "d_fake_mean": d_fake_mean,
+                    "d_real_mean": d_real_mean,
                     "examples": wandb.Image(
                         G(fixed_noise, fixed_labels)
                         .data.view(SAMPLE_SIZE, 1, 28, 28)
