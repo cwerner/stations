@@ -3,14 +3,13 @@ import sys
 import hydra
 import numpy as np
 import torch
-import wandb
 from omegaconf import DictConfig, OmegaConf
 from torch import nn, optim
-from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
 
+import wandb
 from models.simplecgan import Discriminator, Generator, weights_init
 from utils.io.logging import log
 from utils.io.pathlib_extensions import Path
@@ -135,9 +134,6 @@ def my_app(cfg: DictConfig) -> None:
         [child.unlink() for child in model_dir.iterdir()]
         [child.unlink() for child in sample_dir.iterdir()]
 
-    # fixed_noise = Variable(fixed_noise)
-    fixed_labels = Variable(fixed_labels)
-
     real_label, fake_label = 1, 0
 
     for epoch in range(start_epoch, cfg.epochs):
@@ -163,14 +159,11 @@ def my_app(cfg: DictConfig) -> None:
             # TODO: check out scatter
             labels_onehot.scatter_(1, train_y.view(batch_size, 1), 1)
 
-            inputv = Variable(input)
-            labelv = Variable(label).unsqueeze(dim=1)
-
             # descriminator on real image
-            out_d = D(inputv, Variable(labels_onehot))
+            out_d = D(input, labels_onehot)  # Variable(labels_onehot))
             optim_D.zero_grad()
 
-            errD_real = criterion(out_d, labelv)
+            errD_real = criterion(out_d, label.unsqueeze(dim=1))
             errD_real.backward()
 
             realD_mean = out_d.data.cpu().mean()
@@ -185,17 +178,13 @@ def my_app(cfg: DictConfig) -> None:
             noise.resize_(batch_size, cfg.nz).normal_(0, 1)
             label.resize_(batch_size).fill_(fake_label)
 
-            noisev = Variable(noise)
-            labelv = Variable(label).unsqueeze(dim=1)
-            onehotv = Variable(labels_onehot)
-
             # generator on fake image
-            fake_image = G(noisev, onehotv)
+            fake_image = G(noise, labels_onehot)
 
             # descriminator on real image
-            out_d = D(fake_image, onehotv)
+            out_d = D(fake_image, labels_onehot)
 
-            errD_fake = criterion(out_d, labelv)
+            errD_fake = criterion(out_d, label.unsqueeze(dim=1))
             fakeD_mean = out_d.data.cpu().mean()
             errD = errD_real + errD_fake
             errD_fake.backward()
@@ -212,13 +201,9 @@ def my_app(cfg: DictConfig) -> None:
 
             labels_onehot.scatter_(1, rand_y.view(batch_size, 1), 1)
             label.resize_(batch_size).fill_(real_label)
-            onehotv = Variable(labels_onehot)
-
-            noisev = Variable(noise)
-            labelv = Variable(label).unsqueeze(dim=1)
-            g_out = G(noisev, onehotv)
-            d_out = D(g_out, onehotv)
-            errG = criterion(d_out, labelv)
+            g_out = G(noise, labels_onehot)
+            d_out = D(g_out, labels_onehot)
+            errG = criterion(d_out, label.unsqueeze(dim=1))
 
             optim_G.zero_grad()
             errG.backward()
