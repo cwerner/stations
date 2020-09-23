@@ -4,8 +4,8 @@ from torch import nn
 
 
 class Discriminator(nn.Module):
-    def __init__(self):
-        super(Discriminator, self).__init__()
+    def __init__(self, alpha=0.2, **kwargs):
+        super(Discriminator, self).__init__(**kwargs)
 
         self.conv1 = nn.Conv2d(1, 32, 5, 1, 2)
         self.bn1 = nn.BatchNorm2d(32)
@@ -14,19 +14,20 @@ class Discriminator(nn.Module):
         self.fc1 = nn.Linear(64 * 28 * 28 + 1000, 1024)
         self.fc2 = nn.Linear(1024, 1)
         self.fc3 = nn.Linear(10, 1000)
+        self.act = nn.LeakyReLU(alpha, inplace=True)
 
     def forward(self, x, labels):
         batch_size = x.size(0)
         x = x.view(batch_size, 1, 28, 28)
-        x = F.leaky_relu(self.bn1(self.conv1(x)), 0.1)
-        x = F.leaky_relu(self.bn2(self.conv2(x)), 0.1)
+        x = self.act(self.bn1(self.conv1(x)))
+        x = self.act(self.bn2(self.conv2(x)))
 
         # concat
         x = x.view(batch_size, 64 * 28 * 28)
-        y_ = F.leaky_relu(self.fc3(labels), 0.1)
+        y_ = self.act(self.fc3(labels))
         x = torch.cat([x, y_], 1)
 
-        x = self.fc2(F.leaky_relu(self.fc1(x), 0.1))
+        x = self.fc2(self.act(self.fc1(x)))
 
         return torch.sigmoid(x)
 
