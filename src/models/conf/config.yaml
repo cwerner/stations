@@ -1,12 +1,15 @@
 defaults:
  - dataset: fake
- - optimizer: adam
+ - optimizer: sgd
 
 batch_size: 128
-epochs: 10
+epochs: 20
 nz: 100
 
 cuda: false
 sample_dir: images
 model_dir: checkpoints
-data_dir: data
+resume: false
+clean: false
+checkpoint: true
+# data_dir: data
