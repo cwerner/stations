@@ -11,4 +11,5 @@ sample_dir: images
 model_dir: checkpoints
 resume: false
 clean: false
+checkpoint: true
 # data_dir: data
