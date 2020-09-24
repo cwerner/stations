@@ -7,10 +7,10 @@ from omegaconf import DictConfig, OmegaConf
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
-from torchvision.utils import save_image
 
 import wandb
-from models.simplecgan import Discriminator, Generator, weights_init
+from models.cdcgan import Discriminator, Generator, weights_init
+from utils.io.imaging import save_image
 from utils.io.logging import log
 from utils.io.pathlib_extensions import Path
 
@@ -203,7 +203,7 @@ def my_app(cfg: DictConfig) -> None:
             loss_discriminator += d_err.data.item()
             loss_generator += g_err.data.item()
 
-            if batch_idx % 25 == 0:
+            if batch_idx % 10 == 0:
                 log.info(
                     f"{epoch:02d} ({batch_idx:03d}/{len(train_loader)}) mean D(fake)"
                     f"= {d_fake_mean:.5f}, mean D(real) = {d_real_mean:.5f}"
@@ -212,8 +212,15 @@ def my_app(cfg: DictConfig) -> None:
                 fake_image = (
                     G(fixed_noise, fixed_labels).data.view(SAMPLE_SIZE, 1, 28, 28).cpu()
                 )
-
-                save_image(fake_image, f"{sample_dir}/{epoch:02}_{batch_idx:03}.png")
+                img_label = (
+                    f"Epoch:{epoch:02d} [{batch_idx:04d}/{len(train_loader):04d}]"
+                )
+                save_image(
+                    fake_image,
+                    f"{sample_dir}/{epoch:02}_{batch_idx:03}.png",
+                    label=img_label,
+                    label2="cDCGAN",
+                )
 
             wandb.log(
                 {
@@ -229,16 +236,17 @@ def my_app(cfg: DictConfig) -> None:
                 }
             )
 
-        torch.save(
-            {
-                "D_state_dict": D.state_dict(),
-                "G_state_dict": G.state_dict(),
-                "optim_D_state_dict": optim_D.state_dict(),
-                "optim_G_state_dict": optim_G.state_dict(),
-                "epoch": epoch,
-            },
-            model_dir / f"checkpoint_epoch_{epoch:002d}.tar",
-        )
+        if cfg.checkpoint:
+            torch.save(
+                {
+                    "D_state_dict": D.state_dict(),
+                    "G_state_dict": G.state_dict(),
+                    "optim_D_state_dict": optim_D.state_dict(),
+                    "optim_G_state_dict": optim_G.state_dict(),
+                    "epoch": epoch,
+                },
+                model_dir / f"checkpoint_epoch_{epoch:002d}.tar",
+            )
 
 
 if __name__ == "__main__":
