@@ -3,7 +3,7 @@ defaults:
  - optimizer: sgd
 
 batch_size: 128
-epochs: 10
+epochs: 20
 nz: 100
 
 cuda: false
