@@ -1,5 +1,5 @@
 defaults:
- - dataset: fake
+ - dataset: mnist
  - optimizer: sgd
 
 batch_size: 128
@@ -11,5 +11,5 @@ sample_dir: images
 model_dir: checkpoints
 resume: false
 clean: false
-checkpoint: true
+checkpoint: false
 # data_dir: data

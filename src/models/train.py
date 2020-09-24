@@ -41,14 +41,25 @@ def my_app(cfg: DictConfig) -> None:
     base_path = Path(hydra.utils.get_original_cwd())
     sample_dir = base_path / Path(cfg.sample_dir)
     model_dir = base_path / Path(cfg.model_dir)
-    data_dir = Path().home() / ".torch" / "datasets" / "mnist"
+    data_dir = Path().home() / ".torch" / "datasets"
 
     for d in [data_dir, sample_dir, model_dir]:
         d.mkdir(parents=True, exist_ok=True)
 
-    train_data = datasets.MNIST(
-        data_dir, train=True, download=True, transform=transform
-    )
+    if cfg.dataset.name == "mnist":
+        train_data = datasets.MNIST(
+            data_dir, train=True, download=True, transform=transform
+        )
+    elif cfg.dataset.name == "fashionmnist":
+        train_data = datasets.FashionMNIST(
+            data_dir, train=True, download=True, transform=transform
+        )
+    elif cfg.dataset.name == "tereno":
+        raise NotImplementedError
+    else:
+        log.error(f"Dataset {cfg.dataset.name} not valid")
+        raise ValueError
+
     # test_data = datasets.MNIST(data_dir, train=False, transform=transform)
 
     train_loader = DataLoader(
