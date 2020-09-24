@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 import wandb
-from models.cdcgan import Discriminator, Generator, weights_init
+from models.model.cdcgan import Discriminator, Generator, weights_init
 from utils.io.imaging import save_image
 from utils.io.logging import log
 from utils.io.pathlib_extensions import Path
