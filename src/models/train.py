@@ -142,10 +142,9 @@ def my_app(cfg: DictConfig) -> None:
         loss_discriminator, loss_generator = 0.0, 0.0
 
         for batch_idx, (train_x, train_y) in enumerate(train_loader):
-            batch_size = train_x.size(0)
+            bs = train_x.size(0)
 
-            # real image
-            # original shape: (bs) x (c) x (w) x (h)
+            # real image original shape: (bs) x (c) x (w) x (h)
             train_x = train_x.view(-1, INPUT_SIZE).to(device)  # (bs) 128 x (data) 784
             train_y = train_y.to(device)  # (bs)
 
@@ -153,11 +152,11 @@ def my_app(cfg: DictConfig) -> None:
             input.resize_as_(train_x).copy_(train_x)
 
             # TODO: rename label to y_isreal, label_id to train_y_onehot
-            label.resize_(batch_size).fill_(real_label)
-            label_id.resize_(batch_size, NUM_LABELS).zero_()
+            label.resize_(bs).fill_(real_label)
+            label_id.resize_(bs, NUM_LABELS).zero_()
 
             # one-hot encoded class id
-            label_id.scatter_(1, train_y.view(batch_size, 1), 1)
+            label_id.scatter_(1, train_y.view(bs, 1), 1)
 
             # descriminator on real image
             d_real = D(input, label_id)
@@ -170,14 +169,12 @@ def my_app(cfg: DictConfig) -> None:
             d_real_mean = d_real.data.cpu().mean()
 
             label_id.zero_()
-            rand_y = torch.from_numpy(
-                np.random.randint(0, NUM_LABELS, size=(batch_size, 1))
-            )
+            rand_y = torch.from_numpy(np.random.randint(0, NUM_LABELS, size=(bs, 1)))
             rand_y = rand_y.to(device)
 
-            label_id.scatter_(1, rand_y.view(batch_size, 1), 1)
-            noise.resize_(batch_size, cfg.nz).normal_(0, 1)
-            label.resize_(batch_size).fill_(fake_label)
+            label_id.scatter_(1, rand_y.view(bs, 1), 1)
+            noise.resize_(bs, cfg.nz).normal_(0, 1)
+            label.resize_(bs).fill_(fake_label)
 
             # generator on fake image
             fake_image = G(noise, label_id)
@@ -196,13 +193,11 @@ def my_app(cfg: DictConfig) -> None:
             # train the G
             noise.normal_(0, 1)
             label_id.zero_()
-            rand_y = torch.from_numpy(
-                np.random.randint(0, NUM_LABELS, size=(batch_size, 1))
-            )
+            rand_y = torch.from_numpy(np.random.randint(0, NUM_LABELS, size=(bs, 1)))
             rand_y = rand_y.to(device)
 
-            label_id.scatter_(1, rand_y.view(batch_size, 1), 1)
-            label.resize_(batch_size).fill_(real_label)
+            label_id.scatter_(1, rand_y.view(bs, 1), 1)
+            label.resize_(bs).fill_(real_label)
 
             fake_image = G(noise, label_id)
             d_fake = D(fake_image, label_id)
