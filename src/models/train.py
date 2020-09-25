@@ -166,8 +166,7 @@ def my_app(cfg: DictConfig) -> None:
             label_id.scatter_(1, rand_y.view(bs, 1), 1)
 
             noise = torch.FloatTensor(bs, (cfg.nz)).normal_(0, 1).to(device)
-            label = torch.FloatTensor(bs).to(device)
-            label.resize_(bs).fill_(fake_label)
+            label = torch.FloatTensor(bs).fill_(fake_label).to(device)
 
             # generator on fake image
             fake = G(noise, label_id)
@@ -193,11 +192,9 @@ def my_app(cfg: DictConfig) -> None:
             label_id.zero_()
             label_id.scatter_(1, rand_y.view(bs, 1), 1)
 
-            label = torch.FloatTensor(bs).to(device)
-            label.fill_(real_label)
+            label = torch.FloatTensor(bs).fill_(real_label).to(device)
 
             # since we just updated D run it again on all fake
-            # TODO: check if detach() here is correct
             output = D(fake, label_id).view(-1)
 
             errG = criterion(output, label)
@@ -223,13 +220,10 @@ def my_app(cfg: DictConfig) -> None:
                         .view(SAMPLE_SIZE, 1, 28, 28)
                         .cpu()
                     )
-                img_label = (
-                    f"Epoch:{epoch:02d} [{batch_idx:04d}/{len(train_loader):04d}]"
-                )
                 im = save_image(
                     fake_image,
                     f"{sample_dir}/{epoch:02}_{batch_idx:03}.png",
-                    label=img_label,
+                    label=f"Epoch:{epoch:02d} [{batch_idx:3d}/{len(train_loader):3d}]",
                     label2="cDCGAN",
                 )
                 wandb.log({"sample": wandb.Image(im)}, commit=False)
