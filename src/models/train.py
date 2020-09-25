@@ -83,14 +83,8 @@ def my_app(cfg: DictConfig) -> None:
 
     criterion = nn.BCELoss()
 
-    input = torch.FloatTensor(cfg.batch_size, INPUT_SIZE).to(device)
-    noise = torch.FloatTensor(cfg.batch_size, (cfg.nz)).to(device)
-    label = torch.FloatTensor(cfg.batch_size).to(device)
-    label_id = torch.FloatTensor(cfg.batch_size, 10).to(device)
-
+    # fixed data (noise and labels)
     fixed_noise = torch.randn(SAMPLE_SIZE, cfg.nz).to(device)
-
-    # TODO: check the outcome and simplify
     fixed_labels = torch.zeros(SAMPLE_SIZE, NUM_LABELS)
     for i in range(NUM_LABELS):
         for j in range(SAMPLE_SIZE // NUM_LABELS):
@@ -135,12 +129,12 @@ def my_app(cfg: DictConfig) -> None:
 
     real_label, fake_label = 1, 0
 
+    G_losses = []
+    D_losses = []
+
     for epoch in range(start_epoch, cfg.epochs):
         D.train()
         G.train()
-
-        loss_discriminator, loss_generator = 0.0, 0.0
-
         for batch_idx, (train_x, train_y) in enumerate(train_loader):
             bs = train_x.size(0)
 
@@ -149,97 +143,104 @@ def my_app(cfg: DictConfig) -> None:
             train_y = train_y.to(device)  # (bs)
 
             # copy data into input and mark with label=1
-            input.resize_as_(train_x).copy_(train_x)
-
-            # TODO: rename label to y_isreal, label_id to train_y_onehot
+            label = torch.FloatTensor(cfg.batch_size).to(device)
             label.resize_(bs).fill_(real_label)
-            label_id.resize_(bs, NUM_LABELS).zero_()
 
             # one-hot encoded class id
+            label_id = torch.FloatTensor(cfg.batch_size, 10).to(device)
+            label_id.resize_(bs, NUM_LABELS).zero_()
             label_id.scatter_(1, train_y.view(bs, 1), 1)
 
-            # descriminator on real image
-            d_real = D(input, label_id)
+            # forward pass real batch (D), calc loss and
+            # calc gradient for backward pass
+            D.zero_grad()
+            output = D(train_x, label_id).view(-1)
+            errD_real = criterion(output, label)
+            errD_real.backward()
+            D_x = output.mean().item()
 
-            optim_D.zero_grad()
-
-            d_real_err = criterion(d_real, label.unsqueeze(dim=1))
-            d_real_err.backward()
-
-            d_real_mean = d_real.data.cpu().mean()
-
+            rand_y = torch.from_numpy(
+                np.random.randint(0, NUM_LABELS, size=(bs, 1))
+            ).to(device)
             label_id.zero_()
-            rand_y = torch.from_numpy(np.random.randint(0, NUM_LABELS, size=(bs, 1)))
-            rand_y = rand_y.to(device)
-
             label_id.scatter_(1, rand_y.view(bs, 1), 1)
-            noise.resize_(bs, cfg.nz).normal_(0, 1)
+
+            noise = torch.FloatTensor(bs, (cfg.nz)).normal_(0, 1).to(device)
+            label = torch.FloatTensor(bs).to(device)
             label.resize_(bs).fill_(fake_label)
 
             # generator on fake image
-            fake_image = G(noise, label_id)
+            fake = G(noise, label_id)
 
             # descriminator on real image
-            d_fake = D(fake_image, label_id)
+            output = D(fake.detach(), label_id).view(-1)
+            errD_fake = criterion(output, label)
+            errD_fake.backward()
+            D_G_z1 = output.mean().item()
 
-            d_fake_err = criterion(d_fake, label.unsqueeze(dim=1))
-            d_fake_mean = d_fake.data.cpu().mean()
-            d_err = (d_real_err + d_fake_err) / 2
-
-            d_fake_err.backward()
+            # add gradients from all-real and all-fake batches
+            errD = errD_real + errD_fake
 
             optim_D.step()
 
-            # train the G
-            noise.normal_(0, 1)
+            # train the G network
+            G.zero_grad()
+
+            rand_y = torch.from_numpy(
+                np.random.randint(0, NUM_LABELS, size=(bs, 1))
+            ).to(device)
+            label_id = torch.FloatTensor(bs, 10).to(device)
             label_id.zero_()
-            rand_y = torch.from_numpy(np.random.randint(0, NUM_LABELS, size=(bs, 1)))
-            rand_y = rand_y.to(device)
-
             label_id.scatter_(1, rand_y.view(bs, 1), 1)
-            label.resize_(bs).fill_(real_label)
 
-            fake_image = G(noise, label_id)
-            d_fake = D(fake_image, label_id)
-            g_err = criterion(d_fake, label.unsqueeze(dim=1))
+            label = torch.FloatTensor(bs).to(device)
+            label.fill_(real_label)
 
-            optim_G.zero_grad()
-            g_err.backward()
+            # since we just updated D run it again on all fake
+            # TODO: check if detach() here is correct
+            output = D(fake, label_id).view(-1)
+
+            errG = criterion(output, label)
+            errG.backward()
+            D_G_z2 = output.mean().item()
+
             optim_G.step()
 
-            loss_discriminator += d_err.data.item()
-            loss_generator += g_err.data.item()
+            G_losses.append(errG.item())
+            D_losses.append(errD.item())
 
             if batch_idx % 10 == 0:
                 log.info(
-                    f"{epoch:02d} ({batch_idx:03d}/{len(train_loader)}) mean D(fake)"
-                    f"= {d_fake_mean:.5f}, mean D(real) = {d_real_mean:.5f}"
+                    f"{epoch:02d} ({batch_idx:03d}/{len(train_loader)}) LossD = "
+                    f"{errD.item():.5f}, LossG = {errG.item():.5f}, "
+                    f"D(x): {D_x:.5f}, D(G(z)): {D_G_z1:.5f}/{D_G_z2:.5f}"
                 )
 
-                fake_image = (
-                    G(fixed_noise, fixed_labels).data.view(SAMPLE_SIZE, 1, 28, 28).cpu()
-                )
+                with torch.no_grad():
+                    fake_image = (
+                        G(fixed_noise, fixed_labels)
+                        .detach()
+                        .view(SAMPLE_SIZE, 1, 28, 28)
+                        .cpu()
+                    )
                 img_label = (
                     f"Epoch:{epoch:02d} [{batch_idx:04d}/{len(train_loader):04d}]"
                 )
-                save_image(
+                im = save_image(
                     fake_image,
                     f"{sample_dir}/{epoch:02}_{batch_idx:03}.png",
                     label=img_label,
                     label2="cDCGAN",
                 )
+                wandb.log({"sample": wandb.Image(im)}, commit=False)
 
             wandb.log(
                 {
-                    "g_loss_train": g_err.data.item(),
-                    "d_loss_train": d_err.data.item(),
-                    "d_fake_mean": d_fake_mean,
-                    "d_real_mean": d_real_mean,
-                    "examples": wandb.Image(
-                        G(fixed_noise, fixed_labels)
-                        .data.view(SAMPLE_SIZE, 1, 28, 28)
-                        .cpu()
-                    ),
+                    "g_loss": errG.item(),
+                    "d_loss": errD.item(),
+                    "D(x)": D_x,
+                    "D_G_z1": D_G_z1,
+                    "D_G_z2": D_G_z2,
                 }
             )
 
