@@ -24,8 +24,9 @@ transform = transforms.Compose(
 @hydra.main(config_path="conf", config_name="config.yaml")
 def my_app(cfg: DictConfig) -> None:
 
-    wandb.init(project="cgan-mnist-demo", config=cfg, tags=["test"])
+    wandb.init(project=f"cdcgan-{cfg.dataset.name}", config=cfg, tags=[])
     run_id = wandb.run.id
+    log.info(f"cDCGAN Dataset:{cfg.dataset.name}")
     log.info(f"Run ID: {run_id}")
 
     # Decide which device we want to run on
