@@ -19,7 +19,7 @@ def save_image(
     format: Optional[str] = None,
     label: Optional[str] = None,
     label2: Optional[str] = None,
-) -> None:
+) -> Image:
 
     grid = make_grid(
         tensor,
@@ -58,3 +58,4 @@ def save_image(
             d.text((4, y), label2, fnt=fnt, fill=(255, 255, 0))
 
     im.save(fp, format=format)
+    return im
