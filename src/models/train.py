@@ -1,7 +1,6 @@
 import sys
 
 import hydra
-import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
 from torch import nn, optim
@@ -109,7 +108,7 @@ def my_app(cfg: DictConfig) -> None:
 
     if cfg.resume:
         try:
-            checkpoint = torch.load(model_dir.latest("checkpoint_epoch_*.tar"))
+            checkpoint = torch.load(model_dir.latest("checkpoint*.tar"))
             start_epoch = checkpoint["epoch"] + 1
             D.load_state_dict(checkpoint["D_state_dict"])
             G.load_state_dict(checkpoint["G_state_dict"])
@@ -127,7 +126,7 @@ def my_app(cfg: DictConfig) -> None:
         [child.unlink() for child in model_dir.iterdir()]
         [child.unlink() for child in sample_dir.iterdir()]
 
-    real_label, fake_label = 1, 0
+    real_l, fake_l = 1, 0
 
     G_losses = []
     D_losses = []
@@ -142,38 +141,30 @@ def my_app(cfg: DictConfig) -> None:
             train_x = train_x.view(-1, INPUT_SIZE).to(device)  # (bs) 128 x (data) 784
             train_y = train_y.to(device)  # (bs)
 
-            # copy data into input and mark with label=1
-            label = torch.FloatTensor(cfg.batch_size).to(device)
-            label.resize_(bs).fill_(real_label)
+            label_real = torch.FloatTensor(bs).fill_(real_l).to(device)
+            label_fake = torch.FloatTensor(bs).fill_(fake_l).to(device)
 
             # one-hot encoded class id
-            label_id = torch.FloatTensor(cfg.batch_size, 10).to(device)
-            label_id.resize_(bs, NUM_LABELS).zero_()
-            label_id.scatter_(1, train_y.view(bs, 1), 1)
+            label_onehot = torch.FloatTensor(bs, NUM_LABELS).zero_().to(device)
+            label_onehot.scatter_(1, train_y.view(bs, 1), 1)
 
             # forward pass real batch (D), calc loss and
             # calc gradient for backward pass
             D.zero_grad()
-            output = D(train_x, label_id).view(-1)
-            errD_real = criterion(output, label)
+
+            output = D(train_x, label_onehot).view(-1)
+            errD_real = criterion(output, label_real)
             errD_real.backward()
             D_x = output.mean().item()
 
-            rand_y = torch.from_numpy(
-                np.random.randint(0, NUM_LABELS, size=(bs, 1))
-            ).to(device)
-            label_id.zero_()
-            label_id.scatter_(1, rand_y.view(bs, 1), 1)
-
             noise = torch.FloatTensor(bs, (cfg.nz)).normal_(0, 1).to(device)
-            label = torch.FloatTensor(bs).fill_(fake_label).to(device)
 
             # generator on fake image
-            fake = G(noise, label_id)
+            fake = G(noise, label_onehot)
 
             # descriminator on real image
-            output = D(fake.detach(), label_id).view(-1)
-            errD_fake = criterion(output, label)
+            output = D(fake.detach(), label_onehot).view(-1)
+            errD_fake = criterion(output, label_fake)
             errD_fake.backward()
             D_G_z1 = output.mean().item()
 
@@ -185,19 +176,10 @@ def my_app(cfg: DictConfig) -> None:
             # train the G network
             G.zero_grad()
 
-            rand_y = torch.from_numpy(
-                np.random.randint(0, NUM_LABELS, size=(bs, 1))
-            ).to(device)
-            label_id = torch.FloatTensor(bs, 10).to(device)
-            label_id.zero_()
-            label_id.scatter_(1, rand_y.view(bs, 1), 1)
-
-            label = torch.FloatTensor(bs).fill_(real_label).to(device)
-
             # since we just updated D run it again on all fake
-            output = D(fake, label_id).view(-1)
+            output = D(fake, label_onehot).view(-1)
 
-            errG = criterion(output, label)
+            errG = criterion(output, label_real)
             errG.backward()
             D_G_z2 = output.mean().item()
 
@@ -239,6 +221,10 @@ def my_app(cfg: DictConfig) -> None:
             )
 
         if cfg.checkpoint:
+            if cfg.checkpoint_incr:
+                fname = model_dir / f"checkpoint_epoch_{epoch:03d}.tar"
+            else:
+                fname = model_dir / "checkpoint.tar"
             torch.save(
                 {
                     "D_state_dict": D.state_dict(),
@@ -247,7 +233,7 @@ def my_app(cfg: DictConfig) -> None:
                     "optim_G_state_dict": optim_G.state_dict(),
                     "epoch": epoch,
                 },
-                model_dir / f"checkpoint_epoch_{epoch:002d}.tar",
+                fname,
             )
 
 

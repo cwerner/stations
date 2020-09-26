@@ -3,7 +3,7 @@ defaults:
  - optimizer: sgd
 
 batch_size: 128
-epochs: 20
+epochs: 40
 nz: 100
 
 cuda: false
@@ -11,5 +11,6 @@ sample_dir: images
 model_dir: checkpoints
 resume: false
 clean: false
-checkpoint: false
+checkpoint: true
+checkpoint_incr: false
 # data_dir: data
